@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flagsmith Sentinel - Autonomous Flag Lifecycle & MCP Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#10b981',
+              600: '#059669',
+            },
+            darkBg: '#0b0f19',
+            darkCard: '#111827',
+            darkBorder: '#1f2937'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen font-sans antialiased">
+  <!-- Header -->
+  <header class="border-b border-darkBorder bg-darkCard/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+        <i class="fa-solid fa-flag text-white text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight flex items-center gap-2">
+          Flagsmith Sentinel
+          <span class="text-xs font-mono uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">MCP Agent</span>
+        </h1>
+        <p class="text-xs text-slate-400">Flagsmith as the Decision Layer for Autonomous Flag Debt Lifecycle</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3 text-sm">
+      <span class="px-3 py-1 rounded-full text-xs font-medium bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1.5">
+        <i class="fa-solid fa-shield-halved"></i>
+        Propose-First Safety Guardrails
+      </span>
+      <button onclick="runAudit()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-lg text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-2">
+        <i class="fa-solid fa-magnifying-glass-chart"></i>
+        Audit Flagsmith Evidence
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+    <!-- Top Stats Banner -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-darkCard border border-darkBorder p-5 rounded-2xl">
+        <div class="text-xs text-slate-400 font-medium">Managed Flags</div>
+        <div id="stat-total" class="text-3xl font-extrabold mt-1 text-white">4</div>
+        <div class="text-xs text-emerald-400 mt-2 flex items-center gap-1">
+          <i class="fa-solid fa-check"></i> Sourced from Flagsmith
+        </div>
+      </div>
+      <div class="bg-darkCard border border-darkBorder p-5 rounded-2xl">
+        <div class="text-xs text-slate-400 font-medium">100% Rollouts (>60d)</div>
+        <div id="stat-stale" class="text-3xl font-extrabold mt-1 text-amber-400">2</div>
+        <div class="text-xs text-amber-400 mt-2 flex items-center gap-1">
+          <i class="fa-solid fa-clock-rotate-left"></i> Confirmed Winning Variants
+        </div>
+      </div>
+      <div class="bg-darkCard border border-darkBorder p-5 rounded-2xl">
+        <div class="text-xs text-slate-400 font-medium">AST Code Invocations</div>
+        <div id="stat-code" class="text-3xl font-extrabold mt-1 text-cyan-400">3</div>
+        <div class="text-xs text-slate-400 mt-2">Active in source AST</div>
+      </div>
+      <div class="bg-darkCard border border-darkBorder p-5 rounded-2xl">
+        <div class="text-xs text-slate-400 font-medium">Registered MCP Tools</div>
+        <div class="text-3xl font-extrabold mt-1 text-purple-400">7</div>
+        <div class="text-xs text-purple-400 mt-2 flex items-center gap-1">
+          <i class="fa-solid fa-robot"></i> Official @modelcontextprotocol/sdk
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Flagsmith Flags Matrix -->
+    <section class="bg-darkCard border border-darkBorder rounded-2xl p-6 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-base font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-emerald-400"></i>
+            Flagsmith Feature Flags & Experiment Status
+          </h2>
+          <p class="text-xs text-slate-400">Flagsmith provides the rollout percentage, experiment age, and confirmed winning variant</p>
+        </div>
+        <button onclick="loadFlags()" class="text-slate-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-darkBorder hover:bg-slate-800 transition">
+          <i class="fa-solid fa-rotate-right mr-1"></i> Refresh State
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="text-xs text-slate-400 border-b border-darkBorder bg-slate-900/40">
+            <tr>
+              <th class="py-3 px-4">Flag Key</th>
+              <th class="py-3 px-4">Experiment Description</th>
+              <th class="py-3 px-4">Type</th>
+              <th class="py-3 px-4">Lifecycle State</th>
+              <th class="py-3 px-4">Duration</th>
+              <th class="py-3 px-4 text-right">Flagsmith Environment State</th>
+            </tr>
+          </thead>
+          <tbody id="flags-table-body" class="divide-y divide-darkBorder font-mono text-xs">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Interactive Live App Behavior Test -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-darkCard border border-darkBorder rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+        <div>
+          <h3 class="text-base font-semibold text-white flex items-center gap-2 mb-2">
+            <i class="fa-solid fa-stopwatch text-cyan-400"></i>
+            Live Route Latency & Behavioral Benchmark
+          </h3>
+          <p class="text-xs text-slate-400 mb-4">
+            Demonstrates a simulated checkout path where the winning variant reduces measured route latency from 480 ms to 42 ms by switching to direct tokenized Apple Pay.
+          </p>
+          <div id="checkout-result-box" class="bg-slate-950 border border-darkBorder p-4 rounded-xl text-xs font-mono space-y-2 text-slate-300">
+            <div>Click "Run Simulated Benchmark" below to measure route latency.</div>
+          </div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-darkBorder flex items-center justify-between">
+          <span class="text-xs text-slate-400">Evaluating <code>fast_checkout_stripe</code></span>
+          <button onclick="testCheckout()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-4 py-2 rounded-lg text-xs transition flex items-center gap-1.5">
+            <i class="fa-solid fa-play"></i> Run Simulated Benchmark
+          </button>
+        </div>
+      </div>
+
+      <!-- Autonomous Refactoring Diff Preview -->
+      <div class="bg-darkCard border border-darkBorder rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-base font-semibold text-white flex items-center gap-2">
+              <i class="fa-solid fa-code-compare text-emerald-400"></i>
+              Safe Reviewable Code Refactor (Propose-First)
+            </h3>
+            <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">Dry-Run Default</span>
+          </div>
+          <p class="text-xs text-slate-400 mb-3">
+            Generates a reviewable diff that preserves the winning branch, removes dead fallback branches, and cleans unused Flagsmith imports.
+          </p>
+          <pre id="diff-box" class="bg-slate-950 border border-darkBorder p-4 rounded-xl text-xs font-mono text-emerald-400 max-h-52 overflow-y-auto whitespace-pre-wrap">// Click "Propose Reviewable Refactor" to view diff</pre>
+        </div>
+        <div class="mt-4 pt-4 border-t border-darkBorder flex items-center justify-between">
+          <button onclick="previewRefactor(false)" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2 rounded-lg border border-darkBorder transition flex items-center gap-1.5">
+            <i class="fa-solid fa-eye"></i> Propose Reviewable Diff
+          </button>
+          <button onclick="previewRefactor(true)" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded-lg transition font-medium flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i> Apply Confirmed Refactor
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MCP Integration Showcase -->
+    <section class="bg-gradient-to-br from-darkCard to-slate-900 border border-darkBorder rounded-2xl p-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-white flex items-center gap-2">
+          <i class="fa-solid fa-network-wired text-purple-400"></i>
+          Model Context Protocol (MCP) Capabilities
+        </h3>
+        <span class="text-xs font-mono text-slate-400">Exposing 7 MCP Tools for Claude & Cursor</span>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">
+        AI coding assistants connect to <code>src/mcp-server.ts</code> to manage feature flags, multivariate rollouts, and codebase audits using structured tool calls.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
+        <div class="bg-slate-950 p-3 rounded-lg border border-darkBorder">
+          <div class="text-purple-400 font-bold mb-1">Provisioning:</div>
+          <div class="text-slate-300">"Create a feature flag for the new checkout and roll it out to 50% of users"</div>
+          <div class="mt-2 text-emerald-400 text-[11px]"><i class="fa-solid fa-arrow-right"></i> Calls <code>flagsmith_create_flag</code></div>
+        </div>
+        <div class="bg-slate-950 p-3 rounded-lg border border-darkBorder">
+          <div class="text-purple-400 font-bold mb-1">Audit Trail:</div>
+          <div class="text-slate-300">"Audit repository for flags at 100% rollout for >60 days with confirmed winners"</div>
+          <div class="mt-2 text-emerald-400 text-[11px]"><i class="fa-solid fa-arrow-right"></i> Calls <code>flagsmith_audit_stale_flags</code></div>
+        </div>
+        <div class="bg-slate-950 p-3 rounded-lg border border-darkBorder">
+          <div class="text-purple-400 font-bold mb-1">Safe Refactor:</div>
+          <div class="text-slate-300">"Generate a reviewable diff removing fast_checkout_stripe and retaining the Stripe branch"</div>
+          <div class="mt-2 text-emerald-400 text-[11px]"><i class="fa-solid fa-arrow-right"></i> Calls <code>flagsmith_refactor_stale_flag</code></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    async function loadFlags() {
+      try {
+        const res = await fetch('/api/flags');
+        const data = await res.json();
+        const tbody = document.getElementById('flags-table-body');
+        tbody.innerHTML = '';
+
+        document.getElementById('stat-total').innerText = data.flags.length;
+
+        data.flags.forEach(flag => {
+          const isEnabled = flag.state?.enabled ?? flag.default_enabled;
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-900/50 transition';
+
+          const statusBadge = flag.lifecycle_status === 'STALE_100_PERCENT'
+            ? `<span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/30">100% Rollout (>60d)</span>`
+            : flag.lifecycle_status === 'ROLLING_OUT'
+            ? `<span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">A/B Multivariate (50/50)</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Active</span>`;
+
+          tr.innerHTML = `
+            <td class="py-3 px-4 font-semibold text-white">${flag.name}</td>
+            <td class="py-3 px-4 text-slate-300 font-sans text-xs">${flag.description}</td>
+            <td class="py-3 px-4 text-slate-400">${flag.type}</td>
+            <td class="py-3 px-4">${statusBadge}</td>
+            <td class="py-3 px-4 text-slate-400">${flag.days_active || 1}d</td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="toggleFlag('${flag.name}', ${!isEnabled})" class="px-3 py-1 rounded text-xs font-semibold transition ${
+                isEnabled
+                  ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/30'
+                  : 'bg-rose-600/20 text-rose-400 border border-rose-500/40 hover:bg-rose-600/30'
+              }">
+                ${isEnabled ? 'ENABLED 🟢' : 'DISABLED 🔴'}
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Failed to load flags:', err);
+      }
+    }
+
+    async function toggleFlag(name, enabled) {
+      await fetch('/api/flags/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, enabled })
+      });
+      loadFlags();
+      testCheckout();
+    }
+
+    async function testCheckout() {
+      const res = await fetch('/api/test-sample-checkout');
+      const data = await res.json();
+      const box = document.getElementById('checkout-result-box');
+      box.innerHTML = `
+        <div class="text-slate-400">// Measured Benchmark:</div>
+        <div>Order Payload: <span class="text-white font-bold">${data.orderId}</span> ($${data.amount})</div>
+        <div>Evaluated Flagsmith Flag: <span class="text-cyan-400 font-bold">${data.flagEvaluated}</span></div>
+        <div>Active Code Path: <span class="${data.flagState ? 'text-emerald-400' : 'text-amber-400'} font-bold">${data.executedRoute}</span></div>
+        <div>Measured Latency: <span class="text-purple-400 font-bold">${data.latencyMs} ms</span> (${data.flagState ? 'Direct tokenized Apple Pay' : 'Multi-hop 3DS redirect'})</div>
+      `;
+    }
+
+    async function previewRefactor(apply = false) {
+      const res = await fetch('/api/refactor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath: 'src/sample-codebase/checkout.ts',
+          flagName: 'fast_checkout_stripe',
+          keepBranch: 'ENABLED',
+          apply: apply
+        })
+      });
+      const data = await res.json();
+      const diffBox = document.getElementById('diff-box');
+      if (data.success) {
+        diffBox.innerText = `// ${data.diff.diffSummary}\n` +
+          `// Flagsmith Evidence: 100% rollout for 105 days, confirmed winning variant.\n\n` +
+          `--- PROPOSED REVIEWABLE CODE (src/sample-codebase/checkout.ts) ---\n` +
+          data.diff.refactoredContent;
+        if (apply) {
+          alert('✅ Confirmed refactor applied to disk safely.');
+        }
+      } else {
+        diffBox.innerText = 'Error: ' + data.error;
+      }
+    }
+
+    async function runAudit() {
+      const res = await fetch('/api/audit');
+      const data = await res.json();
+      alert(`🛡️ Flagsmith Sentinel Audit Evidence:\nFound ${data.audits.length} flags at 100% rollout for >60 days with confirmed winning variants across ${data.totalUsages} codebase AST locations.`);
+    }
+
+    loadFlags();
+    testCheckout();
+  </script>
+</body>
+</html>
